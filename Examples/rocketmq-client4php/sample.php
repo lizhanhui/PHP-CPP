@@ -1,13 +1,16 @@
 <?php
+    $file = fopen('/var/tmp/test.log', 'a');
+
     function consume($msg) {
-        echo $msg->getTopic();
-        echo $msg->getMsgId();
-        echo $msg->getBodyLen();
+        fwrite($msg->getTopic());
+        fwrite($msg->getMsgId());
+        fwrite($msg->getBodyLen());
+        fwrite("\r\n");
     }
 
     $phpConsumer = new PhpPushConsumer();
-    $consumerGroupName = "CG_QuickStart";
-    $topic = "T_QuickStart";
+    $consumerGroupName = "CG_PHP";
+    $topic = "TopicTest";
     $tags = "*";
     $phpConsumer->setConsumerGroup($consumerGroupName);
     $phpConsumer->subscribe($topic, $tags, "consume");

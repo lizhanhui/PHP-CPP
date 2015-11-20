@@ -161,8 +161,10 @@ ConsumeConcurrentlyStatus PhpMessageListener::consumeMessage(std::list<MessageEx
     Php::Value value = parameters[2](&msg);
 
     if (value.numericValue() > 0) {
+        std::cout << "Message Consumed OK" << std::endl;
         return RECONSUME_LATER;
     }
 
+    std::cout << "Message Consumption Failed! Retry Later." << std::endl;
     return CONSUME_SUCCESS;
 }
