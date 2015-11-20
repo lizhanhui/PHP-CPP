@@ -61,7 +61,7 @@ public:
     }
     
     /**
-     *  Extends exisiting PHP interface
+     *  Extends existing PHP interface
      *
      *  Note that the interface that you supply must already exist! Therefore
      *  you can only supply interfaces that you created in your own extension.

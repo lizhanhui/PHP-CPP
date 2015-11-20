@@ -1,0 +1,168 @@
+#include <iostream>
+#include <phpcpp.h>
+#include <rocketmq/DefaultMQPushConsumer.h>
+#include <rocketmq/MessageListener.h>
+#include <rocketmq/Message.h>
+#include <rocketmq/MessageExt.h>
+#include <rocketmq/MessageQueue.h>
+#include <rocketmq/PullResult.h>
+#include <rocketmq/MQClientException.h>
+
+
+class PhpMessage : public Php::Base {
+public:
+    PhpMessage(MessageExt& messageExt) : _messageExt(messageExt) {
+    }
+
+    Php::Value getMsgId() {
+        return _messageExt.getMsgId();
+    }
+
+    Php::Value getTopic() {
+        return _messageExt.getTopic();
+    }
+
+    Php::Value getTags() {
+        return _messageExt.getTags();
+    }
+
+    Php::Value getKeys() {
+        return _messageExt.getKeys();
+    }
+
+    Php::Value getBodyLen() {
+        return _messageExt.getBodyLen();
+    }
+
+    /**
+     * return value type: char*
+     */
+    Php::Value getBody() {
+        return _messageExt.getBody();
+    }
+
+private:
+    MessageExt& _messageExt;
+};
+
+class PhpMessageListener : public MessageListenerConcurrently {
+private:
+    const Php::Parameters& parameters;
+
+public:
+    PhpMessageListener(const Php::Parameters& params) : parameters(params) {
+    }
+
+    virtual ConsumeConcurrentlyStatus consumeMessage(std::list<MessageExt *> &msgs,
+                                                     ConsumeConcurrentlyContext &context);
+};
+
+class PhpPushConsumer : public Php::Base {
+
+public:
+    PhpPushConsumer() {
+        consumer = new DefaultMQPushConsumer();
+    }
+
+    virtual ~PhpPushConsumer() {
+        delete(messageListener);
+        delete(consumer);
+    }
+
+    void start() {
+        consumer->start();
+    }
+
+    void shutdown() {
+        consumer->shutdown();
+    }
+
+    void setConsumerGroup(Php::Parameters& params) {
+        if (params.size() < 1) {
+            throw Php::Exception("Incorrect number of parameters assigned.");
+        }
+
+        consumer->setConsumerGroup(params[0].stringValue());
+    }
+
+    void subscribe(Php::Parameters& params) {
+        if (params.size() != 3) {
+            throw Php::Exception("Incorrect number of parameters passed in");
+        }
+        consumer->subscribe(params[0].stringValue(), params[1].stringValue());
+        messageListener = new PhpMessageListener(params);
+        consumer->setMessageListener(messageListener);
+    }
+
+private:
+    DefaultMQPushConsumer* consumer;
+    MessageListener* messageListener;
+};
+
+
+/**
+ *  tell the compiler that the get_module is a pure C function
+ */
+extern "C" {
+
+/**
+ *  Function that is called by PHP right after the PHP process
+ *  has started, and that returns an address of an internal PHP
+ *  strucure with all the details and features of your extension
+ *
+ *  @return void*   a pointer to an address that is understood by PHP
+ */
+PHPCPP_EXPORT void *get_module()
+{
+    // static(!) Php::Extension object that should stay in memory
+    // for the entire duration of the process (that's why it's static)
+    static Php::Extension extension("rocketmqclient4php", "1.0");
+
+    Php::Class<PhpMessage> phpMessage("PhpMessage");
+    phpMessage.method("getMsgId", &PhpMessage::getMsgId, {});
+    phpMessage.method("getTopic", &PhpMessage::getTopic, {});
+    phpMessage.method("getTags", &PhpMessage::getTags, {});
+    phpMessage.method("getKeys", &PhpMessage::getKeys, {});
+    phpMessage.method("getBodyLen", &PhpMessage::getBodyLen, {});
+    phpMessage.method("getBody", &PhpMessage::getBody, {});
+    extension.add(std::move(phpMessage));
+
+    Php::Class<PhpPushConsumer> phpPushConsumer("PhpPushConsumer");
+
+    phpPushConsumer.method("start", &PhpPushConsumer::start, {});
+
+    phpPushConsumer.method("shutdown", &PhpPushConsumer::shutdown, {});
+
+    phpPushConsumer.method("setConsumerGroup", &PhpPushConsumer::setConsumerGroup,
+                           {Php::ByVal("consumerGroup", Php::Type::String)});
+
+    phpPushConsumer.method("subscribe", &PhpPushConsumer::subscribe,
+                           {Php::ByVal("topic", Php::Type::String),
+                            Php::ByVal("tags", Php::Type::String),
+                            Php::ByVal("consumeFunction", Php::Type::Callable)});
+
+    extension.add(std::move(phpPushConsumer));
+
+    // return the extension
+    return extension;
+}
+}
+
+ConsumeConcurrentlyStatus PhpMessageListener::consumeMessage(std::list<MessageExt *> &msgs,
+                                                             ConsumeConcurrentlyContext &context) {
+
+    if (!parameters[2].isCallable()) {
+        throw Php::Exception("Callback PHP function is expected");
+    }
+
+    MessageExt messageExt = *(msgs.front());
+    PhpMessage msg(messageExt);
+
+    Php::Value value = parameters[2](&msg);
+
+    if (value.numericValue() > 0) {
+        return RECONSUME_LATER;
+    }
+
+    return CONSUME_SUCCESS;
+}
