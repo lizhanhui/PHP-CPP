@@ -47,10 +47,10 @@ private:
 
 class PhpMessageListener : public MessageListenerConcurrently {
 private:
-    const Php::Parameters& parameters;
+    const Php::Value& _callback;
 
 public:
-    PhpMessageListener(const Php::Parameters& params) : parameters(params) {
+    PhpMessageListener(const Php::Value& callback) : _callback(callback) {
     }
 
     virtual ConsumeConcurrentlyStatus consumeMessage(std::list<MessageExt *> &msgs,
@@ -90,13 +90,15 @@ public:
             throw Php::Exception("Incorrect number of parameters passed in");
         }
         consumer->subscribe(params[0].stringValue(), params[1].stringValue());
-        messageListener = new PhpMessageListener(params);
+        Php::Value* value = new Php::Value(params[2]);
+        messageListener = new PhpMessageListener(*value);
         consumer->setMessageListener(messageListener);
     }
 
 private:
     DefaultMQPushConsumer* consumer;
     MessageListener* messageListener;
+    Php::Value* callback;
 };
 
 
@@ -151,20 +153,30 @@ PHPCPP_EXPORT void *get_module()
 ConsumeConcurrentlyStatus PhpMessageListener::consumeMessage(std::list<MessageExt *> &msgs,
                                                              ConsumeConcurrentlyContext &context) {
 
-    if (!parameters[2].isCallable()) {
+    MessageExt messageExt = *(msgs.front());
+
+    std::cout << "Begin to consume message. msgId: " << messageExt.getMsgId() << std::endl;
+
+    std::cout << "Test if callable: " << (_callback.isCallable() ? " true" : "false") << std::endl;
+
+    PhpMessage* msg = new PhpMessage(messageExt);
+    if (!_callback.isCallable()) {
         throw Php::Exception("Callback PHP function is expected");
     }
 
-    MessageExt messageExt = *(msgs.front());
-    PhpMessage msg(messageExt);
-
-    Php::Value value = parameters[2](&msg);
-
-    if (value.numericValue() > 0) {
-        std::cout << "Message Consumed OK" << std::endl;
-        return RECONSUME_LATER;
+    Php::Value value;
+    try {
+        value = _callback(msg);
+    } catch (...) {
+        std::cout << "Yuck!" << std::endl;
+        delete(msg);
     }
 
-    std::cout << "Message Consumption Failed! Retry Later." << std::endl;
+    if (value.numericValue() > 0) {
+        std::cout << "Message Consumption Failed! Retry Later." << std::endl;
+        return RECONSUME_LATER;
+    }
+    std::cout << "Message Consumed OK" << std::endl;
+
     return CONSUME_SUCCESS;
 }

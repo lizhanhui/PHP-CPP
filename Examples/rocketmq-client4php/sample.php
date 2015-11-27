@@ -1,11 +1,7 @@
 <?php
-    $file = fopen('/var/tmp/test.log', 'a');
-
     function consume($msg) {
-        fwrite($msg->getTopic());
-        fwrite($msg->getMsgId());
-        fwrite($msg->getBodyLen());
-        fwrite("\r\n");
+        echo "PHP Code: ";
+        echo $msg->getMsgId();
     }
 
     $phpConsumer = new PhpPushConsumer();
