@@ -8,41 +8,41 @@
 #include <rocketmq/PullResult.h>
 #include <rocketmq/MQClientException.h>
 
-
 class PhpMessage : public Php::Base {
 public:
-    PhpMessage(MessageExt& messageExt) : _messageExt(messageExt) {
+    PhpMessage(MessageExt* messageExt) {
+        pMessageExt = messageExt;
     }
 
     Php::Value getMsgId() {
-        return _messageExt.getMsgId();
+        return pMessageExt->getMsgId();
     }
 
     Php::Value getTopic() {
-        return _messageExt.getTopic();
+        return pMessageExt->getTopic();
     }
 
     Php::Value getTags() {
-        return _messageExt.getTags();
+        return pMessageExt->getTags();
     }
 
     Php::Value getKeys() {
-        return _messageExt.getKeys();
+        return pMessageExt->getKeys();
     }
 
     Php::Value getBodyLen() {
-        return _messageExt.getBodyLen();
+        return pMessageExt->getBodyLen();
     }
 
     /**
      * return value type: char*
      */
     Php::Value getBody() {
-        return _messageExt.getBody();
+        return pMessageExt->getBody();
     }
 
 private:
-    MessageExt& _messageExt;
+    MessageExt* pMessageExt;
 };
 
 class PhpMessageListener : public MessageListenerConcurrently {
@@ -152,30 +152,26 @@ PHPCPP_EXPORT void *get_module()
 
 ConsumeConcurrentlyStatus PhpMessageListener::consumeMessage(std::list<MessageExt *> &msgs,
                                                              ConsumeConcurrentlyContext &context) {
-
-    MessageExt messageExt = *(msgs.front());
-
-    std::cout << "Begin to consume message. msgId: " << messageExt.getMsgId() << std::endl;
-
+    MessageExt* messageExt = msgs.front();
+    std::cout << "Begin to consume message. msgId: " << messageExt->getMsgId() << std::endl;
     std::cout << "Test if callable: " << (_callback.isCallable() ? " true" : "false") << std::endl;
-
-    PhpMessage* msg = new PhpMessage(messageExt);
     if (!_callback.isCallable()) {
         throw Php::Exception("Callback PHP function is expected");
     }
 
-    Php::Value value;
+    Php::Value param = Php::Object("PhpMessage", new PhpMessage(messageExt));
     try {
-        value = _callback(msg);
+        Php::Value value = _callback(param);
     } catch (...) {
         std::cout << "Yuck!" << std::endl;
-        delete(msg);
+        delete(messageExt);
     }
 
     if (value.numericValue() > 0) {
         std::cout << "Message Consumption Failed! Retry Later." << std::endl;
         return RECONSUME_LATER;
     }
+
     std::cout << "Message Consumed OK" << std::endl;
 
     return CONSUME_SUCCESS;

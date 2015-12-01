@@ -24,10 +24,13 @@ function myFunction($a,$b,$c)
  *  The PHP function is then executed from the C++ code.
  *  The PHP function is this case, adds three numbers.
  */
-echo(call_php_function(function($a, $b, $c){
-                                return $a + $b + $c;
-                            })."\n");
+
+ /**
+  *echo(call_php_function(function($a, $b, $c){
+  *                              return $a + $b + $c;
+  *                          })."\n");
+  */
                             
-echo(call_php_function("myFunction")."\n");
+echo call_php_function("myFunction");
                             
-echo(call_php_function(array(new MyClass(), 'method'))."\n");
+// echo(call_php_function(array(new MyClass(), 'method'))."\n");

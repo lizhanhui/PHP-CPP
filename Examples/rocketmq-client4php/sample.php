@@ -1,7 +1,9 @@
 <?php
     function consume($msg) {
         echo "PHP Code: ";
+        echo $msg->getTopic();
         echo $msg->getMsgId();
+        return 0;
     }
 
     $phpConsumer = new PhpPushConsumer();
@@ -11,5 +13,7 @@
     $phpConsumer->setConsumerGroup($consumerGroupName);
     $phpConsumer->subscribe($topic, $tags, "consume");
     $phpConsumer->start();
+
+
     sleep(2147483647);
 ?>
